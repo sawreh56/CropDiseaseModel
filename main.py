@@ -6,32 +6,37 @@ from PIL import Image
 import io
 
 # -----------------------------
-# Create FastAPI App
+# FastAPI App
 # -----------------------------
-app = FastAPI()
+app = FastAPI(title="🌿 Crop Disease Detection API")
 
 # -----------------------------
-# Load Model on Startup
+# Global Model Variable
 # -----------------------------
 model = None
+class_names = []
+disease_info = {}
 
+# -----------------------------
+# Startup Event: Load Model & Pickle Files
+# -----------------------------
 @app.on_event("startup")
-def load_model():
-    global model
+def load_resources():
+    global model, class_names, disease_info
     try:
         model = tf.keras.models.load_model("crop_disease_model.keras")
-        print("Model loaded successfully")
+        print("✅ Model loaded successfully")
     except Exception as e:
-        print("Model loading failed:", e)
+        print("❌ Model loading failed:", e)
 
-# -----------------------------
-# Load Class Names & Disease Info
-# -----------------------------
-with open("class_names.pkl", "rb") as f:
-    class_names = pickle.load(f)
-
-with open("disease_info.pkl", "rb") as f:
-    disease_info = pickle.load(f)
+    try:
+        with open("class_names.pkl", "rb") as f:
+            class_names = pickle.load(f)
+        with open("disease_info.pkl", "rb") as f:
+            disease_info = pickle.load(f)
+        print("✅ Pickle files loaded successfully")
+    except Exception as e:
+        print("❌ Pickle loading failed:", e)
 
 # -----------------------------
 # Home Route
@@ -41,23 +46,20 @@ def home():
     return {"message": "🌿 Crop Disease Detection API is running successfully!"}
 
 # -----------------------------
-# Prediction Route
+# Predict Route
 # -----------------------------
 @app.post("/predict")
 async def predict_disease(file: UploadFile = File(...)):
 
-    # Safety check if model failed to load
-    if model is None:
-        return {"error": "Model not loaded"}
+    if not model:
+        return {"error": "Model not loaded yet."}
 
-    # Read image
+    # Read Image
     contents = await file.read()
     image = Image.open(io.BytesIO(contents)).convert("RGB")
 
-    # Resize
+    # Resize & Normalize
     image = image.resize((224, 224))
-
-    # Convert to array
     img_array = np.array(image) / 255.0
     img_array = np.expand_dims(img_array, axis=0)
 
@@ -65,10 +67,9 @@ async def predict_disease(file: UploadFile = File(...)):
     prediction = model.predict(img_array)
     predicted_index = np.argmax(prediction)
     confidence = float(np.max(prediction) * 100)
-
     predicted_class = class_names[predicted_index]
 
-    # Get extra info
+    # Extra Info
     precautions = disease_info[predicted_class]["precautions"]
     medicine = disease_info[predicted_class]["medicine"]
 
