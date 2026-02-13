@@ -6,11 +6,27 @@ from PIL import Image
 import io
 
 # -----------------------------
-# Load Model
+# Create FastAPI App
 # -----------------------------
+app = FastAPI()
 
-model = tf.keras.models.load_model("crop_disease_model.keras")
+# -----------------------------
+# Load Model on Startup
+# -----------------------------
+model = None
 
+@app.on_event("startup")
+def load_model():
+    global model
+    try:
+        model = tf.keras.models.load_model("crop_disease_model.keras")
+        print("Model loaded successfully")
+    except Exception as e:
+        print("Model loading failed:", e)
+
+# -----------------------------
+# Load Class Names & Disease Info
+# -----------------------------
 with open("class_names.pkl", "rb") as f:
     class_names = pickle.load(f)
 
@@ -18,15 +34,8 @@ with open("disease_info.pkl", "rb") as f:
     disease_info = pickle.load(f)
 
 # -----------------------------
-# Create FastAPI App
-# -----------------------------
-
-app = FastAPI()
-
-# -----------------------------
 # Home Route
 # -----------------------------
-
 @app.get("/")
 def home():
     return {"message": "🌿 Crop Disease Detection API is running successfully!"}
@@ -34,9 +43,12 @@ def home():
 # -----------------------------
 # Prediction Route
 # -----------------------------
-
 @app.post("/predict")
 async def predict_disease(file: UploadFile = File(...)):
+
+    # Safety check if model failed to load
+    if model is None:
+        return {"error": "Model not loaded"}
 
     # Read image
     contents = await file.read()
