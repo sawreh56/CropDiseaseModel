@@ -3,5 +3,6 @@ uvicorn[standard]==0.22.0
 tensorflow==2.15.0
 numpy==1.26.4
 pillow==12.1.1
-python-multipart==1.0.0
+python-multipart
 pickle-mixin==1.0.2
+
