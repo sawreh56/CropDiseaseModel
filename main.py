@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile
 import tensorflow as tf
 import numpy as np
 import pickle
@@ -11,9 +11,6 @@ model = None
 class_names = None
 disease_info = None
 
-# -----------------------------
-# Startup Event: Load Model
-# -----------------------------
 @app.on_event("startup")
 def load_model():
     global model, class_names, disease_info
@@ -23,34 +20,29 @@ def load_model():
             class_names = pickle.load(f)
         with open("disease_info.pkl", "rb") as f:
             disease_info = pickle.load(f)
-        print("✅ Model and data loaded successfully!")
+        print("Model and data loaded successfully")
     except Exception as e:
-        print("❌ Model loading failed:", e)
+        print(f"Error loading model or data: {e}")
 
-# -----------------------------
-# Home Route
-# -----------------------------
 @app.get("/")
 def home():
-    return {"message": "🌿 Crop Disease Detection API is running successfully!"}
+    return {"message": "API is running"}
 
-# -----------------------------
-# Prediction Route
-# -----------------------------
 @app.post("/predict")
 async def predict_disease(file: UploadFile = File(...)):
+    global model, class_names, disease_info
     if model is None:
-        raise HTTPException(status_code=503, detail="Model not loaded")
+        return {"error": "Model not loaded"}
 
     contents = await file.read()
     image = Image.open(io.BytesIO(contents)).convert("RGB")
     image = image.resize((224, 224))
-    img_array = np.expand_dims(np.array(image)/255.0, axis=0)
+    img_array = np.array(image) / 255.0
+    img_array = np.expand_dims(img_array, axis=0)
 
     prediction = model.predict(img_array)
-    predicted_index = int(np.argmax(prediction))
+    predicted_index = np.argmax(prediction)
     confidence = float(np.max(prediction) * 100)
-
     predicted_class = class_names[predicted_index]
     precautions = disease_info[predicted_class]["precautions"]
     medicine = disease_info[predicted_class]["medicine"]
